@@ -28,15 +28,32 @@ function explanation(key: ClassKey, measure: "general" | "deadSpruce") {
   return "Artskart-posten mangler tilstrekkelig habitatinformasjon. Manglende data betyr ikke at arten er irrelevant.";
 }
 
+function artskartMapUrl(obs: Record<string, unknown>) {
+  const east = Number(obs.East);
+  const north = Number(obs.North);
+  if (!Number.isFinite(east) || !Number.isFinite(north)) return "https://artskart.artsdatabanken.no/app/";
+  const taxonId = Number(obs.TaxonId);
+  const catalogNumber = String(obs.CatalogNumber ?? "").trim();
+  const filter = {
+    TaxonIds: Number.isFinite(taxonId) ? [taxonId] : [],
+    IncludeSubTaxonIds: false,
+    CatalogNumbers: catalogNumber ? [catalogNumber] : [],
+    YearFrom: 2000,
+    CoordinatePrecisionTo: 100,
+    Style: 1,
+  };
+  return `https://artskart.artsdatabanken.no/app/#map/${Math.round(east)},${Math.round(north)}/12/background/NiB/filter/${encodeURIComponent(JSON.stringify(filter))}`;
+}
+
 export async function POST(request: Request) {
   try {
     const body = await request.json() as { points?: Point[] };
     const points = body.points?.filter(p => Number.isFinite(p.lon) && Number.isFinite(p.lat)).slice(0, 50) ?? [];
     if (points.length < 3) return NextResponse.json({ error: "Velg minst tre grensepunkter." }, { status: 400 });
     const ring = [...points, points[0]].map(mercator).map(p => `${p.x.toFixed(2)} ${p.y.toFixed(2)}`).join(",");
-    const params = new URLSearchParams({ pageSize: "5000", pageIndex: "0", gmWktPolygon: `POLYGON((${ring}))`, fromDate: "2000-01-01" });
+    const params = new URLSearchParams({ pageSize: "2000", pageIndex: "0", gmWktPolygon: `POLYGON((${ring}))`, fromDate: "2000-01-01" });
     for (const precision of ["0", "1", "2"]) params.append("precision", precision);
-    const response = await fetch(`https://artskart.artsdatabanken.no/publicapi/api/Observations/list/?${params}`, { signal: AbortSignal.timeout(25000), headers: { Accept: "application/json" } });
+    const response = await fetch(`https://artskart.artsdatabanken.no/publicapi/api/Observations/list/?${params}`, { signal: AbortSignal.timeout(45000), headers: { Accept: "application/json" } });
     if (!response.ok) throw new Error(`Artskart svarte ${response.status}`);
     const payload = await response.json() as { Observations?: Record<string, unknown>[]; TotalCount?: number };
     const unique = new Map<string, Record<string, unknown>>();
@@ -54,13 +71,14 @@ export async function POST(request: Request) {
       const year = Number(date.match(/(?:18|19|20)\d{2}/)?.[0] ?? 0);
       const lon = Number(String(obs.Longitude ?? "").replace(",", "."));
       const lat = Number(String(obs.Latitude ?? "").replace(",", "."));
-      return { id: index + 10000, name: String(obs.Name ?? obs.ScientificName ?? "Ubestemt takson"), latin: String(obs.ScientificName ?? ""), status: String(obs.Status ?? "–"), lat, lon, year, precision: Number(obs.Precision ?? 0), habitat: habitat || "Ikke oppgitt i Artskart-posten", ...classes, explanation: { general: explanation(classes.general, "general"), deadSpruce: explanation(classes.deadSpruce, "deadSpruce") }, obsUrl: String(obs.ObsUrl ?? "") };
+      return { id: index + 10000, name: String(obs.Name ?? obs.ScientificName ?? "Ubestemt takson"), latin: String(obs.ScientificName ?? ""), status: String(obs.Status ?? "–"), lat, lon, year, precision: Number(obs.Precision ?? 0), habitat: habitat || "Ikke oppgitt i Artskart-posten", ...classes, explanation: { general: explanation(classes.general, "general"), deadSpruce: explanation(classes.deadSpruce, "deadSpruce") }, artskartUrl: artskartMapUrl(obs), obsUrl: String(obs.ObsUrl ?? "") };
     }).filter(item => Number.isFinite(item.lon) && Number.isFinite(item.lat))
       .sort((a, b) => (rankStatus[a.status] ?? 9) - (rankStatus[b.status] ?? 9) || a.name.localeCompare(b.name, "nb"))
       .slice(0, 600);
     return NextResponse.json({ results, totalObservations: payload.TotalCount ?? 0, sampledObservations: payload.Observations?.length ?? 0, uniqueTaxaInSample: unique.size, shownTaxa: results.length, truncated: (payload.TotalCount ?? 0) > (payload.Observations?.length ?? 0) || unique.size > results.length, fetchedAt: new Date().toISOString() });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Ukjent feil";
-    return NextResponse.json({ error: `Kunne ikke hente Artskart-data: ${message}` }, { status: 502 });
+    const timedOut = error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
+    const message = timedOut ? "Artskart brukte mer enn 45 sekunder på å svare. Prøv igjen eller tegn et mindre område." : error instanceof Error ? error.message : "Ukjent feil";
+    return NextResponse.json({ error: `Kunne ikke hente Artskart-data: ${message}` }, { status: timedOut ? 504 : 502 });
   }
 }
