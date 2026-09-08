@@ -32,12 +32,13 @@ export interface FilterResult {
   sourceDatasetIds: string[]; sourceDate?: string; relationship?: RecordRelationship;
   geometryRelation?: "inside" | "overlap" | "near" | "buffer" | "crossing";
   distanceMeters?: number; confidence: "high" | "medium" | "low" | "insufficient_data";
+  legalProcedure?: "notification_required" | "permit_assessment" | "special_care" | "unknown";
 }
 
 export const datasets: DatasetDefinition[] = [
   {id:"artskart",name:"Artskart / Artsdatabanken",provider:"Artsdatabanken",sourceUrl:"https://artskart.artsdatabanken.no/",serviceType:"API",licenseStatus:"open",license:"NLOD 2.0",mappingRole:"species",authorityEffect:"assessment_trigger",enabled:true,dataStatus:"LIVE",method:"Artskart Public API",statusNote:"Levende uttrekk for brukerens valgte område."},
   {id:"mdir_naturetypes",name:"Naturtyper etter Miljødirektoratets instruks",provider:"Miljødirektoratet",sourceUrl:"https://kart.miljodirektoratet.no/arcgis/rest/services/naturtyper_nin/MapServer/0",serviceType:"ARCGIS",licenseStatus:"open",license:"NLOD 2.0",mappingRole:"management_selection",authorityEffect:"assessment_trigger",enabled:true,dataStatus:"LIVE",method:"Miljødirektoratets instruks / ArcGIS Feature Layer",ninVersion:"NiN 2.1",statusNote:"Levende, romlig avgrenset GeoJSON-uttrekk for brukerens valgte område."},
-  {id:"utvalgte_naturtyper",name:"Utvalgte naturtyper",provider:"Miljødirektoratet",sourceUrl:"https://kartkatalog.miljodirektoratet.no/",serviceType:"API",licenseStatus:"open",mappingRole:"legal_status",authorityEffect:"legal_status",enabled:false,dataStatus:"NOT_CONNECTED",statusNote:"Definisjon finnes, men ingen data brukes i resultatene."},
+  {id:"mdir_selected_naturetypes",name:"Naturtyper – utvalgte",provider:"Miljødirektoratet",sourceUrl:"https://kart.miljodirektoratet.no/arcgis/rest/services/naturtyper_utvalgte2/FeatureServer/0",serviceType:"ARCGIS",licenseStatus:"open",license:"NLOD",mappingRole:"legal_status",authorityEffect:"legal_status",enabled:true,dataStatus:"LIVE",method:"Naturbase / utvalgte naturtyper",statusNote:"Levende, romlig avgrenset GeoJSON-uttrekk for valgt område."},
   {id:"dn13",name:"Naturtyper etter DN-håndbok 13",provider:"Miljødirektoratet",sourceUrl:"https://kartkatalog.miljodirektoratet.no/",serviceType:"WFS",licenseStatus:"open",mappingRole:"management_selection",authorityEffect:"assessment_trigger",enabled:true,dataStatus:"TEST_FIXTURE",method:"DN-håndbok 13",mappingYear:2010,statusNote:"Kun testregistrering for overlapps- og filtreringstest."},
   {id:"mis_nokkel",name:"MiS – nøkkelbiotoper",provider:"NIBIO / skogeier",serviceType:"WMS",licenseStatus:"unknown",mappingRole:"forestry_environment",authorityEffect:"management_status",enabled:false,dataStatus:"NOT_CONNECTED",method:"MiS",statusNote:"Særregel er definert, men ingen maskinell tjeneste er koblet til."},
   {id:"mis_valgt",name:"MiS – utvalgte livsmiljøer",provider:"NIBIO / skogeier",serviceType:"WMS",licenseStatus:"unknown",mappingRole:"forestry_environment",authorityEffect:"management_status",enabled:false,dataStatus:"NOT_CONNECTED",method:"MiS",statusNote:"Overlappsregelen er testet, men datasettet er ikke live."},
@@ -82,6 +83,10 @@ export function filterFeatures(features: NormalizedFeature[], action: ForestActi
       const ground=action==="MARKBEREDNING",strong=quality.startsWith("Svært høy")||quality.startsWith("Høy")||diversity==="Stort";
       return {...base,relevance:(ground&&central&&strong?"special_rule":"assessment") as RelevanceLevel,basisType:"professional",title:feature.title,reason:ground?`Markinngrep kan påvirke en ${central?"naturtype med sentral økosystemfunksjon":"truet naturtype"}${quality?` med ${quality.toLowerCase()}`:""}.`:`${threatened?"Truet naturtype":"Naturtype med sentral økosystemfunksjon"}${quality?` med ${quality.toLowerCase()}`:""} må vurderes før sluttavvirkning.`,recommendedAction:ground?"Avgrens markinngrep og kontroller lokalitetens faktiske verdier i felt.":"Vurder figurens avgrensning, kvalitet og naturmangfold før avvirkning.",confidence:(quality||diversity?"high":"insufficient_data") as FilterResult["confidence"]};
     }
+    if(feature.datasetId==="mdir_selected_naturetypes"){
+      const permit=action==="VEG";
+      return {...base,relevance:"special_rule",basisType:"law",basisReference:"Naturmangfoldloven §§ 52–54 og forskrift om utvalgte naturtyper",title:`${feature.title} – utvalgt naturtype`,reason:permit?"Forekomst av utvalgt naturtype berøres. Forekomsten skal inngå i myndighetenes vurdering av tiltaket etter naturmangfoldloven § 53.":"Forekomst av utvalgt naturtype berøres. Særskilte regler gjelder. Meldeplikt til kommunen kan følge av naturmangfoldloven § 54 dersom tiltaket ikke krever annen tillatelse.",recommendedAction:permit?"Klarlegg konsekvensene for forekomsten som del av tillatelsesbehandlingen.":"Avklar meldeplikt med kommunen. Ved meldeplikt skal kommunens tilbakemelding foreligge før tiltaket utføres; forskriften angir tre ukers svarfrist.",legalProcedure:permit?"permit_assessment":"notification_required",confidence:"high" as const};
+    }
     if(feature.datasetId==="mis_ikke_valgt") return {...base,relevance:action==="MARKBEREDNING"?"assessment":"information",basisType:"pefc",title:feature.title,reason:action==="MARKBEREDNING"?"Markinngrep kan berøre livsmiljøet selv om figuren ikke er valgt som nøkkelbiotop.":"Ikke-utvalgt MiS-livsmiljø er relevant informasjon, men er ikke en nøkkelbiotop.",recommendedAction:"Avklar status og faktisk påvirkning; ikke anta nøkkelbiotopstatus.",confidence:"medium" as const};
     return {...base,relevance:"hidden",basisType:"professional",title:feature.title,reason:"Ingen implementert regel gjør registreringen relevant for valgt tiltak.",confidence:"insufficient_data" as const};
   });
@@ -103,7 +108,7 @@ export function summarizeResults(results: FilterResult[]) {
   const categories={arter:0,naturtyper:0,mis:0,nin:0,andre:0};
   for(const item of unique.values()){
     counts[item.relevance]++;
-    if(item.datasetId==="artskart")categories.arter++;else if(item.datasetId.startsWith("mis_"))categories.mis++;else if(item.datasetId==="mdir_naturetypes"||item.datasetId==="dn13"||item.datasetId==="utvalgte_naturtyper")categories.naturtyper++;else if(item.datasetId.includes("nin"))categories.nin++;else categories.andre++;
+    if(item.datasetId==="artskart")categories.arter++;else if(item.datasetId.startsWith("mis_"))categories.mis++;else if(item.datasetId==="mdir_naturetypes"||item.datasetId==="mdir_selected_naturetypes"||item.datasetId==="dn13")categories.naturtyper++;else if(item.datasetId.includes("nin"))categories.nin++;else categories.andre++;
   }
   return {counts,categories,total:unique.size,relevant:unique.size-counts.hidden};
 }
