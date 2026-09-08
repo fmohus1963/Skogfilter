@@ -14,7 +14,8 @@ export interface DatasetDefinition {
   mappingRole: "reference_nin" | "full_coverage_nin" | "management_selection" | "forestry_environment" | "species" | "legal_status" | "external_professional" | "resource_model";
   authorityEffect: "descriptive" | "assessment_trigger" | "management_status" | "legal_status";
   enabled: boolean;
-  connectionStatus: "connected" | "prepared" | "blocked";
+  dataStatus: "LIVE" | "TEST_FIXTURE" | "MOCK" | "NOT_CONNECTED";
+  method?: string; mappingYear?: number; ninVersion?: string;
   statusNote: string;
 }
 
@@ -34,16 +35,16 @@ export interface FilterResult {
 }
 
 export const datasets: DatasetDefinition[] = [
-  {id:"artskart",name:"Artskart / Artsdatabanken",provider:"Artsdatabanken",sourceUrl:"https://artskart.artsdatabanken.no/",serviceType:"API",licenseStatus:"open",license:"NLOD 2.0",mappingRole:"species",authorityEffect:"assessment_trigger",enabled:true,connectionStatus:"connected",statusNote:"Levende API-uttrekk er koblet til piloten."},
-  {id:"mdir_naturtyper",name:"Naturtyper etter Miljødirektoratets instruks",provider:"Miljødirektoratet",sourceUrl:"https://kartkatalog.miljodirektoratet.no/",serviceType:"API",licenseStatus:"open",mappingRole:"management_selection",authorityEffect:"assessment_trigger",enabled:true,connectionStatus:"prepared",statusNote:"Adapter og regler er klargjort; piloten bruker demonstrasjonsdata."},
-  {id:"utvalgte_naturtyper",name:"Utvalgte naturtyper",provider:"Miljødirektoratet",sourceUrl:"https://kartkatalog.miljodirektoratet.no/",serviceType:"API",licenseStatus:"open",mappingRole:"legal_status",authorityEffect:"legal_status",enabled:true,connectionStatus:"prepared",statusNote:"Regel og normalisert format er klargjort."},
-  {id:"dn13",name:"Naturtyper etter DN-håndbok 13",provider:"Miljødirektoratet",sourceUrl:"https://kartkatalog.miljodirektoratet.no/",serviceType:"WFS",licenseStatus:"open",mappingRole:"management_selection",authorityEffect:"assessment_trigger",enabled:true,connectionStatus:"prepared",statusNote:"Overlappsregel mot nyere Mdir-kartlegging er implementert."},
-  {id:"mis_nokkel",name:"MiS – nøkkelbiotoper",provider:"NIBIO / skogeier",serviceType:"WMS",licenseStatus:"unknown",mappingRole:"forestry_environment",authorityEffect:"management_status",enabled:true,connectionStatus:"prepared",statusNote:"Særregel er klargjort; ingen landsdekkende maskinell tjeneste er koblet til."},
-  {id:"mis_valgt",name:"MiS – utvalgte livsmiljøer",provider:"NIBIO / skogeier",serviceType:"WMS",licenseStatus:"unknown",mappingRole:"forestry_environment",authorityEffect:"management_status",enabled:true,connectionStatus:"prepared",statusNote:"Behandles parallelt med naturtypekartlegging."},
-  {id:"mis_ikke_valgt",name:"MiS – ikke-utvalgte livsmiljøer",provider:"NIBIO / skogeier",serviceType:"WMS",licenseStatus:"unknown",mappingRole:"forestry_environment",authorityEffect:"descriptive",enabled:true,connectionStatus:"prepared",statusNote:"Skal aldri automatisk behandles som nøkkelbiotop."},
-  {id:"nin_full",name:"Ren / heldekkende NiN-kartlegging",provider:"Kartleggingsinstitusjon",serviceType:"FILE",licenseStatus:"unknown",mappingRole:"full_coverage_nin",authorityEffect:"descriptive",enabled:true,connectionStatus:"prepared",statusNote:"Beholdes som selvstendig faglig beskrivelsesgrunnlag."},
-  {id:"nhm_nin",name:"NHM/UiO – NiN-referansekartlegging",provider:"Naturhistorisk museum, UiO",serviceType:"FILE",licenseStatus:"unknown",mappingRole:"reference_nin",authorityEffect:"descriptive",enabled:true,connectionStatus:"prepared",statusNote:"Eiker/Veia-regresjonseksempel er inkludert; ingen generell nedprioritering."},
-  {id:"narin",name:"NARIN / Biofokus",provider:"Biofokus",serviceType:"FILE",licenseStatus:"clarification_required",mappingRole:"external_professional",authorityEffect:"descriptive",enabled:false,connectionStatus:"blocked",statusNote:"Ikke høstet, mellomlagret eller republisert. Gjenbruksrettigheter må avklares."},
+  {id:"artskart",name:"Artskart / Artsdatabanken",provider:"Artsdatabanken",sourceUrl:"https://artskart.artsdatabanken.no/",serviceType:"API",licenseStatus:"open",license:"NLOD 2.0",mappingRole:"species",authorityEffect:"assessment_trigger",enabled:true,dataStatus:"LIVE",method:"Artskart Public API",statusNote:"Levende uttrekk for brukerens valgte område."},
+  {id:"mdir_naturtyper",name:"Naturtyper etter Miljødirektoratets instruks",provider:"Miljødirektoratet",sourceUrl:"https://kartkatalog.miljodirektoratet.no/",serviceType:"API",licenseStatus:"open",mappingRole:"management_selection",authorityEffect:"assessment_trigger",enabled:true,dataStatus:"TEST_FIXTURE",method:"Miljødirektoratets instruks",mappingYear:2018,statusNote:"Regelmotoren bruker et merket Eiker/Veia-testscenario; ingen live-tjeneste er koblet til."},
+  {id:"utvalgte_naturtyper",name:"Utvalgte naturtyper",provider:"Miljødirektoratet",sourceUrl:"https://kartkatalog.miljodirektoratet.no/",serviceType:"API",licenseStatus:"open",mappingRole:"legal_status",authorityEffect:"legal_status",enabled:false,dataStatus:"NOT_CONNECTED",statusNote:"Definisjon finnes, men ingen data brukes i resultatene."},
+  {id:"dn13",name:"Naturtyper etter DN-håndbok 13",provider:"Miljødirektoratet",sourceUrl:"https://kartkatalog.miljodirektoratet.no/",serviceType:"WFS",licenseStatus:"open",mappingRole:"management_selection",authorityEffect:"assessment_trigger",enabled:true,dataStatus:"TEST_FIXTURE",method:"DN-håndbok 13",mappingYear:2010,statusNote:"Kun testregistrering for overlapps- og filtreringstest."},
+  {id:"mis_nokkel",name:"MiS – nøkkelbiotoper",provider:"NIBIO / skogeier",serviceType:"WMS",licenseStatus:"unknown",mappingRole:"forestry_environment",authorityEffect:"management_status",enabled:false,dataStatus:"NOT_CONNECTED",method:"MiS",statusNote:"Særregel er definert, men ingen maskinell tjeneste er koblet til."},
+  {id:"mis_valgt",name:"MiS – utvalgte livsmiljøer",provider:"NIBIO / skogeier",serviceType:"WMS",licenseStatus:"unknown",mappingRole:"forestry_environment",authorityEffect:"management_status",enabled:false,dataStatus:"NOT_CONNECTED",method:"MiS",statusNote:"Overlappsregelen er testet, men datasettet er ikke live."},
+  {id:"mis_ikke_valgt",name:"MiS – ikke-utvalgte livsmiljøer",provider:"NIBIO / skogeier",serviceType:"WMS",licenseStatus:"unknown",mappingRole:"forestry_environment",authorityEffect:"descriptive",enabled:true,dataStatus:"TEST_FIXTURE",method:"MiS",mappingYear:2025,statusNote:"Merket testregistrering i Eiker/Veia-scenarioet; ikke live."},
+  {id:"nin_full",name:"Ren / heldekkende NiN-kartlegging",provider:"Kartleggingsinstitusjon",serviceType:"FILE",licenseStatus:"unknown",mappingRole:"full_coverage_nin",authorityEffect:"descriptive",enabled:false,dataStatus:"NOT_CONNECTED",method:"NiN",statusNote:"Arkitekturen bevarer faglig prioritet, men datasettet er ikke koblet til."},
+  {id:"nhm_nin",name:"NHM/UiO – NiN-referansekartlegging",provider:"Naturhistorisk museum, UiO",serviceType:"FILE",licenseStatus:"unknown",mappingRole:"reference_nin",authorityEffect:"descriptive",enabled:true,dataStatus:"TEST_FIXTURE",method:"NiN referansekartlegging",mappingYear:2020,ninVersion:"NiN 2.0",statusNote:"Merket Eiker/Veia-regresjonsfixture; ikke live eller publisert kildedatasett."},
+  {id:"narin",name:"NARIN / Biofokus",provider:"Biofokus",serviceType:"FILE",licenseStatus:"clarification_required",mappingRole:"external_professional",authorityEffect:"descriptive",enabled:false,dataStatus:"NOT_CONNECTED",statusNote:"Ikke høstet, mellomlagret eller republisert. Gjenbruksrettigheter må avklares."},
 ];
 
 export function relationshipBetween(a: NormalizedFeature, b: NormalizedFeature): RecordRelationship {
@@ -65,6 +66,11 @@ export const eikerDemoFeatures: NormalizedFeature[] = [
   {datasetId:"mis_ikke_valgt",featureId:"mis-veia-2025",geometry:{type:"Polygon",coordinates:[]},title:"MiS-livsmiljø – ikke valgt",mappingYear:2025,method:"MiS",properties:{livsmiljo:"liggende død ved",utvalgt:false},mappingRole:"forestry_environment",authorityEffect:"descriptive"},
 ];
 
+export const v8FixtureFeatures: NormalizedFeature[] = [
+  ...eikerDemoFeatures,
+  {datasetId:"dn13",featureId:"dn13-eiker-2010",geometry:{type:"Polygon",coordinates:[]},title:"DN13 – eldre registrering",mappingYear:2010,method:"DN-håndbok 13",properties:{verdi:"C"},mappingRole:"management_selection",authorityEffect:"assessment_trigger"},
+];
+
 export function filterFeatures(features: NormalizedFeature[], action: ForestAction): FilterResult[] {
   return features.map(feature=>{
     const base={featureIds:[feature.featureId],action,sourceDatasetIds:[feature.datasetId],sourceDate:feature.mappingYear?String(feature.mappingYear):undefined,geometryRelation:"overlap" as const};
@@ -81,6 +87,19 @@ export function groupOverlaps(features: NormalizedFeature[], action: ForestActio
   const rank:Record<RelevanceLevel,number>={hidden:0,information:1,assessment:2,special_rule:3};
   const relevance=results.reduce((best,item)=>rank[item.relevance]>rank[best]?item.relevance:best,"hidden" as RelevanceLevel);
   return {featureIds:features.map(f=>f.featureId),action,relevance,basisType:"professional",title:"Flere naturkartlegginger finnes",reason:"NiN beskriver naturforholdene detaljert, Mdir-data har forvaltningsrettet funksjon, og MiS beholdes parallelt. Ingen kilde skjules automatisk.",recommendedAction:action==="MARKBEREDNING"?"Vurder skogbunn, kalktrinn og livsmiljø før markinngrep.":"Vurder registreringene samlet før avvirkning.",sourceDatasetIds:features.map(f=>f.datasetId),relationship:relation,geometryRelation:"overlap",confidence:"high"};
+}
+
+export function summarizeResults(results: FilterResult[]) {
+  const unique=new Map<string,{relevance:RelevanceLevel;datasetId:string}>();
+  const rank:Record<RelevanceLevel,number>={hidden:0,information:1,assessment:2,special_rule:3};
+  for(const result of results) result.featureIds.forEach((id,index)=>{const current=unique.get(id),candidate={relevance:result.relevance,datasetId:result.sourceDatasetIds[index]??result.sourceDatasetIds[0]??"unknown"};if(!current||rank[candidate.relevance]>rank[current.relevance])unique.set(id,candidate)});
+  const counts={special_rule:0,assessment:0,information:0,hidden:0};
+  const categories={arter:0,naturtyper:0,mis:0,nin:0,andre:0};
+  for(const item of unique.values()){
+    counts[item.relevance]++;
+    if(item.datasetId==="artskart")categories.arter++;else if(item.datasetId.startsWith("mis_"))categories.mis++;else if(item.datasetId.includes("nin"))categories.nin++;else if(item.datasetId==="mdir_naturtyper"||item.datasetId==="dn13"||item.datasetId==="utvalgte_naturtyper")categories.naturtyper++;else categories.andre++;
+  }
+  return {counts,categories,total:unique.size,relevant:unique.size-counts.hidden};
 }
 
 export const actionMeta: Record<ForestAction,{label:string;phase:"cycle"|"other";rules:"complete"|"expanding"}> = {
