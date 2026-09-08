@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test, { after } from "node:test";
 import { createServer } from "vite";
 import { fileURLToPath } from "node:url";
+import { readFileSync } from "node:fs";
 
 const root=fileURLToPath(new URL("..",import.meta.url));
 const vite=await createServer({appType:"custom",configFile:false,root,resolve:{alias:{"@":root}},server:{middlewareMode:true}});
@@ -10,6 +11,7 @@ const engine=await vite.ssrLoadModule("/lib/skogfilter-engine.ts");
 const adapter=await vite.ssrLoadModule("/lib/mdir-nature-type-adapter.ts");
 const selectedAdapter=await vite.ssrLoadModule("/lib/mdir-selected-nature-type-adapter.ts");
 const definitions=await vite.ssrLoadModule("/lib/classification-definitions.ts");
+const actionMapping=await vite.ssrLoadModule("/lib/forest-action-arts-mapping.ts");
 const feature=(datasetId,mappingYear,method="same",properties={})=>({datasetId,featureId:`${datasetId}-${mappingYear}`,geometry:{type:"Polygon",coordinates:[]},title:datasetId,mappingYear,method,properties,mappingRole:"management_selection",authorityEffect:"assessment_trigger"});
 
 test("nyere sammenlignbar Mdir-kartlegging erstatter eldre",()=>assert.equal(engine.relationshipBetween(feature("mdir_naturetypes",2024),feature("mdir_naturetypes",2019)),"supersedes"));
@@ -33,3 +35,5 @@ test("berørt utvalgt naturtype gir lovbasert særregel uten forbudsbudskap",()=
 test("skogsbilveg bruker tillatelsesvurdering og ikke generell §54-meldeplikt",()=>{const f=feature("mdir_selected_naturetypes",2024,"Naturbase",{}),r=engine.filterFeatures([f],"VEG")[0];assert.equal(r.legalProcedure,"permit_assessment");assert.doesNotMatch(r.reason,/meldeplikt|§ 54/i);assert.match(r.reason,/§ 53/)});
 test("alle aktive klassifikasjonskoder har felles dokumentasjon",()=>{assert.deepEqual(Object.keys(definitions.speciesClassificationDefinitions).sort(),["S1","S2","S3","SU"]);assert.deepEqual(Object.keys(definitions.resultClassificationDefinitions).sort(),["assessment","hidden","information","special_rule"]);for(const d of [...Object.values(definitions.speciesClassificationDefinitions),...Object.values(definitions.resultClassificationDefinitions)]){assert.ok(d.label);assert.ok(d.short)}});
 test("romlig overlapp alene kobler ikke ordinær og utvalgt naturtype",()=>{const selected=feature("mdir_selected_naturetypes",2024,"Naturbase",{FaktaarkOpphav:"https://faktaark.naturbase.no?id=BN1"}),ordinary=feature("mdir_naturetypes",2024,"Mdir",{NiNID:"NIN1"});assert.equal(selectedAdapter.secureSourceLink(selected,ordinary),false);ordinary.properties.NiNID="BN1";assert.equal(selectedAdapter.secureSourceLink(selected,ordinary),true)});
+test("alle ForestActions har eksplisitt mapping til gammel artsregel",()=>{assert.deepEqual(Object.keys(actionMapping.forestActionArtsMapping).sort(),Object.keys(engine.actionMeta).sort());assert.equal(actionMapping.artsRuleFor("SLUTTAVVIRKNING").code,"H1");assert.equal(actionMapping.artsRuleFor("SLUTTAVVIRKNING").scope,"legacy_narrower");assert.match(actionMapping.artsRuleFor("SLUTTAVVIRKNING").temporaryLimitation,/hogstform|H1/i)});
+test("resultatkortet viser faktisk valgt ForestAction separat fra artsregelen",()=>{const source=readFileSync(new URL("../app/page.tsx",import.meta.url),"utf8");assert.match(source,/label="Valgt tiltak" value=\{actionMeta\[action\]\.label\}/);assert.match(source,/label="Artsregel brukt" value=\{`\$\{activeArtsRule\.code\}/);assert.doesNotMatch(source,/label="Valgt tiltak" value=\{`\$\{measureInfo\[measure\]/)});
