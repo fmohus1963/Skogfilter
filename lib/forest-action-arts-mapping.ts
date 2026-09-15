@@ -13,4 +13,11 @@ export const forestActionArtsMapping:Record<ForestAction,{measure:LegacyArtsMeas
   GROFT:{measure:"ditching",scope:"equivalent"},
   VEG:{measure:"road",scope:"legacy_broader",temporaryLimitation:"H9 omfatter både skogsbilveg og terrengtransport."},
 };
-export function artsRuleFor(action:ForestAction){const mapping=forestActionArtsMapping[action],legacy=legacyArtsMeasures[mapping.measure];return{...mapping,...legacy}}
+export function artsRuleFor(action:ForestAction,actionId:string=action){
+  if(action==="SLUTTAVVIRKNING"){
+    if(actionId==="FLATEHOGST")return{measure:"clearcut" as const,scope:"equivalent",...legacyArtsMeasures.clearcut,temporaryLimitation:undefined};
+    if(actionId==="SELEKTIV_HOGST")return{measure:"selective" as const,scope:"equivalent",...legacyArtsMeasures.selective,temporaryLimitation:undefined};
+    return{measure:"general" as const,scope:"unavailable",code:"SU",label:"Ingen egen regel for valgt hogstform",temporaryLimitation:"Velg hogstform. Frøtrestillingshogst, skjermstillingshogst og plukkhogst krever egne faglige vurderinger; flatehogst brukes ikke som standard."};
+  }
+  const mapping=forestActionArtsMapping[action],legacy=legacyArtsMeasures[mapping.measure];return{...mapping,...legacy};
+}

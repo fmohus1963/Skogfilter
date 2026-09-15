@@ -1,3 +1,9 @@
+# Gjeldende status
+
+Hogstform velges nå eksplisitt. Flatehogst bruker H1, selektiv hogst H2; øvrige former og uspesifisert hogst har ingen egen artsregel og gir SU. Grøfting og grøfterensk beholder foreløpig H8. Se [datamodell v9](datamodel-v9.md).
+
+## Historisk beskrivelse før v9
+
 # ForestAction og eldre artsregler
 
 Gjennomgått 8. september 2026. S1/S2/S3/SU-reglene er ikke endret i denne rettingen.

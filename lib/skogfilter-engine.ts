@@ -1,3 +1,4 @@
+import { recordKey } from "./ecological-model";
 export type ForestAction =
   | "MARKBEREDNING" | "FORYNGELSE" | "UNGSKOGPLEIE" | "TYNNING"
   | "GJODSLING" | "SLUTTAVVIRKNING" | "TERRENGTRANSPORT" | "GROFT" | "VEG";
@@ -16,6 +17,8 @@ export interface DatasetDefinition {
   enabled: boolean;
   dataStatus: "LIVE" | "TEST_FIXTURE" | "MOCK" | "NOT_CONNECTED";
   method?: string; mappingYear?: number; ninVersion?: string;
+  version?: string; mappingPeriod?: { from?: string; to?: string }; publishedAt?: string;
+  updatedAt?: string; geographicCoverage?: string; quality?: string;
   statusNote: string;
 }
 
@@ -24,10 +27,12 @@ export interface NormalizedFeature {
   title: string; registrationDate?: string; mappingYear?: number; method?: string; ninVersion?: string;
   properties: Record<string, unknown>; mappingRole: DatasetDefinition["mappingRole"];
   authorityEffect: DatasetDefinition["authorityEffect"]; sourceUrl?: string;
+  registrationId?: string; entityIds?: string[];
 }
 
 export interface FilterResult {
   featureIds: string[]; action: ForestAction; relevance: RelevanceLevel; basisType: BasisType;
+  actionId?: string; assessmentId?: string; claimIds?: string[];
   basisReference?: string; title: string; reason: string; recommendedAction?: string;
   sourceDatasetIds: string[]; sourceDate?: string; relationship?: RecordRelationship;
   geometryRelation?: "inside" | "overlap" | "near" | "buffer" | "crossing";
@@ -49,16 +54,8 @@ export const datasets: DatasetDefinition[] = [
 ];
 
 export function relationshipBetween(a: NormalizedFeature, b: NormalizedFeature): RecordRelationship {
-  const sameMethod = a.method && b.method && a.method === b.method;
-  if (sameMethod && a.mappingYear && b.mappingYear && a.mappingYear !== b.mappingYear) return a.mappingYear > b.mappingYear ? "supersedes" : "superseded";
-  const ids = new Set([a.datasetId,b.datasetId]);
-  if (ids.has("dn13") && ids.has("mdir_naturetypes")) return "primary_with_supplement";
-  if ([...ids].some(id=>id.startsWith("mis_")) && ids.has("mdir_naturetypes")) return "parallel";
-  if ((ids.has("nhm_nin") || ids.has("nin_full")) && ids.has("mdir_naturetypes")) {
-    const aType=String(a.properties.grunntype??""),bType=String(b.properties.grunntype??"");
-    return aType && bType && aType!==bType ? "conflicts" : "refines";
-  }
-  return "unknown";
+  // Dates, providers and different labels do not establish replacement or scientific disagreement.
+  return a && b ? "parallel" : "unknown";
 }
 
 export const eikerDemoFeatures: NormalizedFeature[] = [
@@ -72,11 +69,12 @@ export const v8FixtureFeatures: NormalizedFeature[] = [
   {datasetId:"dn13",featureId:"dn13-eiker-2010",geometry:{type:"Polygon",coordinates:[]},title:"DN13 – eldre registrering",mappingYear:2010,method:"DN-håndbok 13",properties:{verdi:"C"},mappingRole:"management_selection",authorityEffect:"assessment_trigger"},
 ];
 
-export function filterFeatures(features: NormalizedFeature[], action: ForestAction): FilterResult[] {
+export function filterFeatures(features: NormalizedFeature[], action: ForestAction, actionId: string = action): FilterResult[] {
   return features.map(feature=>{
-    const base={featureIds:[feature.featureId],action,sourceDatasetIds:[feature.datasetId],sourceDate:feature.mappingYear?String(feature.mappingYear):undefined,geometryRelation:"overlap" as const};
+    const base={featureIds:[feature.featureId],action,actionId,sourceDatasetIds:[feature.datasetId],sourceDate:feature.mappingYear?String(feature.mappingYear):undefined,geometryRelation:"overlap" as const};
     if(feature.datasetId==="nhm_nin") return {...base,relevance:action==="MARKBEREDNING"?"assessment":"information",basisType:"professional",title:feature.title,reason:action==="MARKBEREDNING"?"Detaljert NiN-grunnlag viser kalkrik høgstaudeskog som kan påvirkes direkte i skogbunnen.":"Detaljert faglig naturbeskrivelse beholdes parallelt med forvaltningskartleggingen.",recommendedAction:"Sammenhold grunntype og kalktrinn med feltforholdene.",confidence:"high" as const};
     if(feature.datasetId==="mdir_naturetypes"){
+      if(action==="SLUTTAVVIRKNING"&&actionId!=="FLATEHOGST") return {...base,relevance:"assessment",basisType:"professional",title:feature.title,reason:"Registreringen beholdes. Det finnes foreløpig ingen egen påvirkningsregel for denne hogstformen; flatehogstens virkning overføres ikke automatisk.",recommendedAction:"Vurder valgt hogstform, inngrepets styrke og lokale naturforhold særskilt.",confidence:"insufficient_data"};
       const p=feature.properties,threatened=p.UK_Truet===1,central=p["UK_SentralØkosystemFunksjon"]===1,quality=String(p.localityQuality??p.lokalitetskvalitet??""),diversity=String(p.biodiversity??"");
       if(!threatened&&!central)return {...base,relevance:"hidden",basisType:"professional",title:feature.title,reason:"Figuren finnes i området, men tilgjengelige utvalgskriterier utløser ingen implementert tiltakregel.",confidence:(p.UK_Truet==null&&p["UK_SentralØkosystemFunksjon"]==null?"insufficient_data":"high") as FilterResult["confidence"]};
       if(action!=="SLUTTAVVIRKNING"&&action!=="MARKBEREDNING")return {...base,relevance:"information",basisType:"professional",title:feature.title,reason:"Naturtypen er prioritert for kartlegging, men valgt tiltak har foreløpig ingen mer spesifikk regel.",confidence:"medium" as const};
@@ -103,7 +101,7 @@ export function groupOverlaps(features: NormalizedFeature[], action: ForestActio
 export function summarizeResults(results: FilterResult[]) {
   const unique=new Map<string,{relevance:RelevanceLevel;datasetId:string}>();
   const rank:Record<RelevanceLevel,number>={hidden:0,information:1,assessment:2,special_rule:3};
-  for(const result of results) result.featureIds.forEach((id,index)=>{const current=unique.get(id),candidate={relevance:result.relevance,datasetId:result.sourceDatasetIds[index]??result.sourceDatasetIds[0]??"unknown"};if(!current||rank[candidate.relevance]>rank[current.relevance])unique.set(id,candidate)});
+  for(const result of results) result.featureIds.forEach((id,index)=>{const datasetId=result.sourceDatasetIds[index]??result.sourceDatasetIds[0]??"unknown",key=recordKey(datasetId,id),current=unique.get(key),candidate={relevance:result.relevance,datasetId};if(!current||rank[candidate.relevance]>rank[current.relevance])unique.set(key,candidate)});
   const counts={special_rule:0,assessment:0,information:0,hidden:0};
   const categories={arter:0,naturtyper:0,mis:0,nin:0,andre:0};
   for(const item of unique.values()){

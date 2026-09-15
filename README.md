@@ -1,3 +1,11 @@
+# Skogfilter
+
+Gjeldende datamodell, migrering og begrensninger: [Datamodell v9](docs/datamodel-v9.md).
+
+Bygg: `node node_modules/vinext/dist/cli.js build`. Tester etter bygg: `node --test --test-concurrency=1 tests/*.test.mjs`. Eksisterende npm-skript nedenfor krever Linux; direkte Node-kommandoer fungerer også på Windows.
+
+## Historisk starterdokumentasjon
+
 # vinext-starter
 
 A clean full-stack starter running on [vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and Drizzle support.

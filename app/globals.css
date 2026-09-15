@@ -2,6 +2,11 @@
 @import "tw-animate-css";
 @import "../vendor/shadcn-tailwind-4.13.0.css";
 
+/* Keep the catalog's scroll utilities available to long registration lists. */
+@utility scrollbar-thin { scrollbar-width: thin; }
+@utility scrollbar-stable { scrollbar-gutter: stable; }
+@source inline("scrollbar-thin scrollbar-stable no-scrollbar");
+
 :root{--background:#eef1eb;--foreground:#15261d;--card:#f8faf6;--card-foreground:#15261d;--popover:#fff;--popover-foreground:#15261d;--primary:#18472c;--primary-foreground:#fff;--secondary:#e4ebe3;--secondary-foreground:#183524;--muted:#e8ede7;--muted-foreground:#647168;--accent:#e5eee5;--accent-foreground:#183524;--destructive:#a6352b;--border:#ced7cd;--input:#cbd5cc;--ring:#638b70;--radius:.75rem;--font-sans:"Aptos","Segoe UI",system-ui,sans-serif}
 @theme inline{--color-background:var(--background);--color-foreground:var(--foreground);--color-card:var(--card);--color-card-foreground:var(--card-foreground);--color-popover:var(--popover);--color-popover-foreground:var(--popover-foreground);--color-primary:var(--primary);--color-primary-foreground:var(--primary-foreground);--color-secondary:var(--secondary);--color-secondary-foreground:var(--secondary-foreground);--color-muted:var(--muted);--color-muted-foreground:var(--muted-foreground);--color-accent:var(--accent);--color-accent-foreground:var(--accent-foreground);--color-destructive:var(--destructive);--color-border:var(--border);--color-input:var(--input);--color-ring:var(--ring);--radius-lg:var(--radius);--radius-xl:calc(var(--radius) + 4px);--font-sans:var(--font-sans)}
 *{box-sizing:border-box}body{margin:0;background:var(--background);color:var(--foreground);font-family:var(--font-sans)}button,input{font:inherit}

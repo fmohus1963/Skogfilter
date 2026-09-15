@@ -1,3 +1,4 @@
+import { artsObservation } from "@/lib/registration-adapters";
 import { NextResponse } from "next/server";
 
 type Point = { lon: number; lat: number };
@@ -56,26 +57,20 @@ export async function POST(request: Request) {
     const response = await fetch(`https://artskart.artsdatabanken.no/publicapi/api/Observations/list/?${params}`, { signal: AbortSignal.timeout(45000), headers: { Accept: "application/json" } });
     if (!response.ok) throw new Error(`Artskart svarte ${response.status}`);
     const payload = await response.json() as { Observations?: Record<string, unknown>[]; TotalCount?: number };
-    const unique = new Map<string, Record<string, unknown>>();
-    for (const obs of payload.Observations ?? []) {
-      const key = String(obs.ScientificNameId ?? obs.TaxonId ?? obs.ScientificName ?? obs.Id);
-      const existing = unique.get(key);
-      const precision = Number(obs.Precision ?? 999999);
-      if (!existing || precision < Number(existing.Precision ?? 999999)) unique.set(key, obs);
-    }
+    const records = (payload.Observations ?? []).map((raw,index)=>({raw,normalized:artsObservation(raw,index)})).filter(item=>item.normalized!==null);
     const rankStatus: Record<string, number> = { CR: 0, EN: 1, VU: 2, NT: 3, DD: 4, LC: 5 };
-    const results = [...unique.values()].map((obs, index) => {
+    const results = records.map(({raw:obs,normalized}, index) => {
       const habitat = String(obs.Habitat ?? "").trim();
       const classes = classify(habitat);
       const date = String(obs.CollectedDate ?? "");
       const year = Number(date.match(/(?:18|19|20)\d{2}/)?.[0] ?? 0);
       const lon = Number(String(obs.Longitude ?? "").replace(",", "."));
       const lat = Number(String(obs.Latitude ?? "").replace(",", "."));
-      return { id: index + 10000, name: String(obs.Name ?? obs.ScientificName ?? "Ubestemt takson"), latin: String(obs.ScientificName ?? ""), status: String(obs.Status ?? "–"), lat, lon, year, precision: Number(obs.Precision ?? 0), habitat: habitat || "Ikke oppgitt i Artskart-posten", ...classes, explanation: { general: explanation(classes.general, "general"), deadSpruce: explanation(classes.deadSpruce, "deadSpruce") }, artskartUrl: artskartMapUrl(obs), obsUrl: String(obs.ObsUrl ?? "") };
+      return { observation: normalized!.observation, entity: normalized!.entity, registeredFeature: normalized!.feature, id: index + 10000, name: String(obs.Name ?? obs.ScientificName ?? "Ubestemt takson"), latin: String(obs.ScientificName ?? ""), status: String(obs.Status ?? "–"), lat, lon, year, precision: normalized!.observation.coordinateUncertaintyMeters ?? null, habitat: habitat || "Ikke oppgitt i Artskart-posten", ...classes, explanation: { general: explanation(classes.general, "general"), deadSpruce: explanation(classes.deadSpruce, "deadSpruce") }, artskartUrl: artskartMapUrl(obs), obsUrl: String(obs.ObsUrl ?? "") };
     }).filter(item => Number.isFinite(item.lon) && Number.isFinite(item.lat))
       .sort((a, b) => (rankStatus[a.status] ?? 9) - (rankStatus[b.status] ?? 9) || a.name.localeCompare(b.name, "nb"))
       .slice(0, 600);
-    return NextResponse.json({ results, totalObservations: payload.TotalCount ?? 0, sampledObservations: payload.Observations?.length ?? 0, uniqueTaxaInSample: unique.size, shownTaxa: results.length, truncated: (payload.TotalCount ?? 0) > (payload.Observations?.length ?? 0) || unique.size > results.length, fetchedAt: new Date().toISOString() });
+    return NextResponse.json({ results, totalObservations: payload.TotalCount ?? 0, sampledObservations: payload.Observations?.length ?? 0, uniqueTaxaInSample: new Set(records.map(r=>r.normalized!.entity.id)).size, shownTaxa: new Set(results.map(r=>r.entity.id)).size, shownObservations: results.length, truncated: (payload.TotalCount ?? 0) > (payload.Observations?.length ?? 0) || records.length > results.length, fetchedAt: new Date().toISOString() });
   } catch (error) {
     const timedOut = error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
     const message = timedOut ? "Artskart brukte mer enn 45 sekunder på å svare. Prøv igjen eller tegn et mindre område." : error instanceof Error ? error.message : "Ukjent feil";
