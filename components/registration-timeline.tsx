@@ -3,7 +3,7 @@ import { chronological, inRegistrationYear, recordKey, registrationYear } from "
 import { datasets, type NormalizedFeature } from "@/lib/skogfilter-engine";
 export type TimelineYear = "all" | "unknown" | number;
 export function visibleRegistrations(features: NormalizedFeature[],year:TimelineYear,hidden:Set<string>){return features.filter(f=>inRegistrationYear(f,year)&&!hidden.has(recordKey(f.datasetId,f.featureId)))}
-export function RegistrationTimeline({features,year,onYear,hidden,onHidden}:{features:NormalizedFeature[];year:TimelineYear;onYear:(year:TimelineYear)=>void;hidden:Set<string>;onHidden:(hidden:Set<string>)=>void}){
+export function RegistrationTimeline({features,year,onYear,hidden,onHidden,onSelect}:{features:NormalizedFeature[];year:TimelineYear;onYear:(year:TimelineYear)=>void;hidden:Set<string>;onHidden:(hidden:Set<string>)=>void;onSelect:(key:string)=>void}){
   const years=[...new Set(features.map(registrationYear).filter((y):y is number=>y!==undefined))].sort((a,b)=>a-b);
   const index=typeof year==="number"?years.indexOf(year):-1;
   return <section className="border-b border-[#d7ded6] bg-[#f8faf6] p-4" aria-label="Naturregistreringer etter år">
@@ -16,7 +16,7 @@ export function RegistrationTimeline({features,year,onYear,hidden,onHidden}:{fea
       <button className="rounded border p-2 text-sm" onClick={()=>{onYear("all");onHidden(new Set())}}>Vis alle registreringer</button>
     </div>
     <details className="mt-3"><summary className="cursor-pointer text-sm font-medium">Slå enkeltregistreringer av/på ({features.length})</summary>
-      <div className="mt-2 max-h-64 space-y-2 overflow-auto scrollbar-thin scrollbar-stable">{chronological(features).map(f=>{const key=recordKey(f.datasetId,f.featureId);return <label key={key} className="flex items-start gap-2 rounded border bg-white p-2 text-sm"><input type="checkbox" className="mt-1" checked={!hidden.has(key)} onChange={e=>{const next=new Set(hidden);if(e.target.checked)next.delete(key);else next.add(key);onHidden(next)}}/><span><strong>{f.title}</strong> · {registrationYear(f)??"Ukjent år"}<br/>{datasets.find(d=>d.id===f.datasetId)?.name??f.datasetId} · {f.method??"Ukjent metode"}{f.ninVersion?` · ${f.ninVersion}`:""}<br/><small>{f.featureId}</small></span></label>})}</div>
+      <div className="mt-2 max-h-64 space-y-2 overflow-auto scrollbar-thin scrollbar-stable">{chronological(features).map(f=>{const key=recordKey(f.datasetId,f.featureId);return <div key={key} className="flex items-start gap-2 rounded border bg-white p-2 text-sm"><input type="checkbox" aria-label={`Vis ${f.title}, ${registrationYear(f)??"ukjent år"}`} className="mt-1" checked={!hidden.has(key)} onChange={e=>{const next=new Set(hidden);if(e.target.checked)next.delete(key);else next.add(key);onHidden(next)}}/><span><button className="font-semibold underline underline-offset-4" onClick={()=>onSelect(key)}>{f.title}</button> · {registrationYear(f)??"Ukjent år"}<br/>{datasets.find(d=>d.id===f.datasetId)?.name??f.datasetId} · {f.method??"Ukjent metode"}{f.ninVersion?` · ${f.ninVersion}`:""}<br/><small>{f.featureId}</small></span></div>})}</div>
     </details>
     {!features.length&&<p className="mt-2 text-sm">Ingen naturregistreringer i gjeldende uttrekk.</p>}
   </section>;
